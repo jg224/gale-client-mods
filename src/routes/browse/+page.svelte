@@ -115,6 +115,12 @@
 	});
 
 	let locked = $derived(profiles.activeLocked);
+	// Installing from Thunderstore is allowed even when the active profile is a
+	// synced profile the consumer doesn't own — consumer-added mods survive
+	// subsequent pulls (see incremental_update in profile/import/mod.rs). Only
+	// the uninstall/version-change context menu stays locked, to protect the
+	// synced set itself.
+	let installLocked = $derived(false);
 </script>
 
 <div class="flex grow overflow-hidden">
@@ -145,7 +151,7 @@
 					{mod}
 					{contextItems}
 					selected={isSelected}
-					locked={profiles.activeLocked}
+					locked={installLocked}
 					oninstall={() => installLatest(mod)}
 					onclick={(evt) => onModClicked(evt, mod)}
 				/>
@@ -153,11 +159,11 @@
 		</ModList>
 	</div>
 
-	{#if selectedMod}
-		<ModDetails {locked} mod={selectedMod} {contextItems} onclose={() => (selectedMod = null)}>
-			<InstallModButton mod={selectedMod} {install} {locked} />
-		</ModDetails>
-	{/if}
+		{#if selectedMod}
+			<ModDetails {locked} mod={selectedMod} {contextItems} onclose={() => (selectedMod = null)}>
+				<InstallModButton mod={selectedMod} {install} locked={installLocked} />
+			</ModDetails>
+		{/if}
 </div>
 
 <ForeignDownloadDialog bind:open={foreignDownloadDialogOpen} onConfirm={doInstall} />

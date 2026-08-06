@@ -380,15 +380,11 @@
 			let data = await api.profile.import.readBase64(base64);
 			importProfileDialog.openFor({ type: 'legacy', ...data });
 		} else if (file.name.endsWith('.zip')) {
-			if (profiles.activeLocked) {
-				pushToast({
-					type: 'error',
-					name: m.menuBar_handleFileDrop_activeLocked_title(),
-					message: m.menuBar_handleFileDrop_activeLocked_message()
-				});
-				return;
-			}
-
+			// Allow importing local mods into a synced profile — the consumer's
+			// own mods survive subsequent pulls (see incremental_update in
+			// profile/import/mod.rs). Only .r2z (full profile replacement)
+			// remains blocked on synced profiles, since that overwrites
+			// everything.
 			await api.profile.import.localModBase64(base64);
 			pushInfoToast({
 				message: m.menuBar_handleFileDrop_message()

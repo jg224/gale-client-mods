@@ -11,3 +11,4 @@ vite.config.ts.timestamp-*
 .VSCodeCounter
 /src-tauri/gen
 PRS.md
+gale-sync-server/

@@ -14,7 +14,7 @@
 		"copyright": "",
 		"targets": "all",
 		"externalBin": [],
-		"createUpdaterArtifacts": true,
+		"createUpdaterArtifacts": false,
 		"shortDescription": "A modern mod manager for Thunderstore",
 		"longDescription": "",
 		"icon": [
@@ -24,9 +24,7 @@
 			"icons/icon.icns",
 			"icons/icon.ico"
 		],
-		"windows": {
-			"signCommand": "artifact-signing-cli -e https://wus2.codesigning.azure.net -a TisButAscratch -c ThisIsForGale -d Gale %1"
-		},
+		"windows": {},
 		"linux": {
 			"appimage": {
 				"files": {

@@ -286,8 +286,24 @@ fn incremental_update(
             profile.force_remove_mod(mod_id.package_uuid)?;
         }
     } else {
-        // remove all extra mods
-        let to_remove = current_ids.difference(&new_ids);
+        // remove all extra mods, EXCEPT on a synced profile pull.
+        //
+        // When pulling a synced profile, any mod the consumer added on top of
+        // the owner's manifest is the consumer's own and must survive the pull
+        // (it isn't in the manifest, so it shows up as "extra"). We detect the
+        // synced-pull case via the profile's sync data and skip removal of
+        // those consumer-added mods.
+        let is_synced = profile.sync.is_some();
+        let to_remove = current_ids.difference(&new_ids).filter(|_id| {
+            // Non-synced profile: original behavior (remove all extras).
+            if !is_synced {
+                return true;
+            }
+            // Synced profile: keep any mod the owner did NOT ship in the
+            // manifest. `new_ids` is the owner's set; anything here in
+            // `difference` is, by definition, consumer-added. Retain it.
+            false
+        });
         for mod_id in to_remove {
             profile.force_remove_mod(mod_id.package_uuid)?;
         }
