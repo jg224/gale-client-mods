@@ -128,6 +128,11 @@ export type Mod = {
 	icon: string | null;
 	configFile: string | null;
 	backend: Backend;
+	/**
+	 * Fork: true if this mod came from a sync pull (part of the owner's synced
+	 * set), false if the local user installed it. Drives per-mod lock state.
+	 */
+	fromSync?: boolean;
 };
 
 export type ModVersion = {

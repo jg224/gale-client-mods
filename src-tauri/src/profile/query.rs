@@ -13,6 +13,7 @@ use crate::thunderstore::{
 struct QueryableProfileMod<'a> {
     enabled: bool,
     install_time: DateTime<Utc>,
+    from_sync: bool,
     kind: QueryableProfileModKind<'a>,
     index: usize,
 }
@@ -39,6 +40,7 @@ impl<'a> QueryableProfileMod<'a> {
         Ok(QueryableProfileMod {
             enabled: profile_mod.enabled,
             install_time: profile_mod.install_time,
+            from_sync: profile_mod.from_sync,
             kind,
             index,
         })
@@ -147,6 +149,7 @@ impl Profile {
                 FrontendProfileMod {
                     data,
                     enabled: queryable.enabled,
+                    from_sync: queryable.from_sync,
                     config_file: self.linked_config.get(&uuid).cloned(),
                 }
             })

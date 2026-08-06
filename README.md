@@ -13,29 +13,32 @@ A modern and lightweight mod manager for [Thunderstore](https://thunderstore.io)
 > This is a fork of [Kesomannen/gale](https://github.com/Kesomannen/gale) licensed
 > under [GPL-3.0](./LICENSE.md). It adds one feature on top of upstream Gale:
 >
-> **Consumers of a synced profile can install their own mods, and those mods
-> survive re-pulls.**
+> **Consumers of a synced profile can install their own mods, manage them
+> freely, and keep them across sync pulls.**
 >
 > - ✅ Install mods from Thunderstore into a synced profile (browse → install works while locked)
 > - ✅ Drag-and-drop local `.zip` / `.dll` mods into a synced profile
-> - ✅ **Consumer-added mods are retained across every profile sync pull** — the core change
-> - 🔒 The synced set (the owner's mods) remains protected — uninstall and version change stay locked
+> - ✅ Fully manage your own mods — uninstall, change version, toggle, edit config
+> - ✅ **Consumer-added mods are retained across every sync pull** — the core change
+> - 🔒 The owner's synced set stays protected and is shown in its own "Synced mods" section
 >
 > ### How it works
 >
-> Upstream Gale wipes any mod the consumer added when pulling a synced profile
-> update, because the pull reconciles the local profile against the owner's
-> manifest exactly. This fork changes that single behavior: on a synced-profile
-> pull, mods the consumer added on top of the owner's set are kept instead of
-> being removed. The owner's synced set is still enforced; only the consumer's
-> own additions are preserved.
+> Each installed mod is tagged `from_sync` (true = came from the owner's synced
+> set; false = installed by the local user). On a synced profile the mod list
+> splits into two sections: **"Synced mods"** (locked) and **"Your mods"**
+> (fully manageable). The tag is set client-side at pull time — **the owner
+> uses vanilla Gale** and never sees it; only the fork (on consumer machines)
+> sets and reads it.
+>
+> The reconcile is also precise: on a pull, only mods the **owner dropped**
+> from the manifest are removed; genuine client mods are retained untouched.
 >
 > See [CHANGES.md](./CHANGES.md) for the exact diff against upstream and
 > [CONTRIBUTING.md](./CONTRIBUTING.md) for build instructions.
 >
 > **Upstream credit:** © Kesomannen — this fork only exists because of the
-> excellent original work. Changes made here are documented in the git history
-> and in [CHANGES.md](./CHANGES.md).
+> excellent original work.
 
 ---
 

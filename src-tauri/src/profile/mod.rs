@@ -88,6 +88,15 @@ pub struct ProfileMod {
     #[serde(default = "Utc::now")]
     pub install_time: DateTime<Utc>,
 
+    /// Whether this mod came from a profile sync pull (i.e. it's part of the
+    /// owner's synced set) versus being installed by the local user.
+    ///
+    /// Fork-only field. Defaults to `false` for backward compatibility with
+    /// existing saves and for mods the user installs themselves. Set to `true`
+    /// during sync pull for every mod present in the owner's manifest.
+    #[serde(default)]
+    pub from_sync: bool,
+
     #[serde(flatten)]
     pub kind: ProfileModKind,
 }
@@ -116,6 +125,7 @@ impl ProfileMod {
             kind,
             install_time: Utc::now(),
             enabled: true,
+            from_sync: false,
         }
     }
 

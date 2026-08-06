@@ -274,6 +274,16 @@ fn incremental_update(
 
     let new_ids: HashSet<&ModId> = new_mods.keys().collect();
 
+    // On a synced-profile pull, the incoming manifest represents the owner's
+    // set. We reconcile precisely using the per-mod `from_sync` flag:
+    //   - mods the owner REMOVED (currently tagged from_sync, not in manifest)
+    //     are uninstalled, so the consumer matches the owner's intent;
+    //   - mods the consumer installed themselves (from_sync == false) are
+    //     retained untouched.
+    // On a non-synced profile, behavior is unchanged from upstream (remove all
+    // extras, or version mismatches when merging).
+    let is_synced = profile.sync.is_some();
+
     if merge {
         // remove only version mismatches
         let to_remove = current_mods.keys().filter(|id| {
@@ -285,27 +295,40 @@ fn incremental_update(
         for mod_id in to_remove {
             profile.force_remove_mod(mod_id.package_uuid)?;
         }
+    } else if is_synced {
+        // Fork: precise synced reconcile. Remove previously-synced mods the
+        // owner no longer ships; keep client mods.
+        let owner_dropped: Vec<Uuid> = profile
+            .mods
+            .iter()
+            .filter(|m| m.from_sync)
+            .map(|m| m.uuid())
+            .filter(|uuid| {
+                !new_ids
+                    .iter()
+                    .any(|id| id.package_uuid == *uuid)
+            })
+            .collect();
+        for uuid in owner_dropped {
+            profile.force_remove_mod(uuid)?;
+        }
     } else {
-        // remove all extra mods, EXCEPT on a synced profile pull.
-        //
-        // When pulling a synced profile, any mod the consumer added on top of
-        // the owner's manifest is the consumer's own and must survive the pull
-        // (it isn't in the manifest, so it shows up as "extra"). We detect the
-        // synced-pull case via the profile's sync data and skip removal of
-        // those consumer-added mods.
-        let is_synced = profile.sync.is_some();
-        let to_remove = current_ids.difference(&new_ids).filter(|_id| {
-            // Non-synced profile: original behavior (remove all extras).
-            if !is_synced {
-                return true;
-            }
-            // Synced profile: keep any mod the owner did NOT ship in the
-            // manifest. `new_ids` is the owner's set; anything here in
-            // `difference` is, by definition, consumer-added. Retain it.
-            false
-        });
+        // Non-synced profile: original behavior (remove all extras).
+        let to_remove = current_ids.difference(&new_ids);
         for mod_id in to_remove {
             profile.force_remove_mod(mod_id.package_uuid)?;
+        }
+    }
+
+    // On a synced pull, tag every incoming (owner) mod as part of the synced
+    // set, and clear the tag for anything we're about to install fresh.
+    if is_synced {
+        let incoming_uuids: HashSet<Uuid> =
+            new_ids.iter().map(|id| id.package_uuid).collect();
+        for profile_mod in &mut profile.mods {
+            if incoming_uuids.contains(&profile_mod.uuid()) {
+                profile_mod.from_sync = true;
+            }
         }
     }
 

@@ -56,7 +56,7 @@
 					<ConfigFileEditor
 						file={selectedFile}
 						section={config.selectedSection}
-						locked={profiles.activeLocked}
+						locked={false}
 					/>
 				{:else if selectedFile.type === 'unsupported'}
 					<div class="text-primary-400 mt-2 mb-1">

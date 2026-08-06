@@ -267,8 +267,32 @@ pub fn duplicate_profile(name: String, app: AppHandle) -> Result<()> {
     Ok(())
 }
 
+/// Fork: is the active profile a synced profile the local user doesn't own?
+/// On such a profile, synced mods are locked but client mods are manageable.
+fn is_sync_consumer(app: &AppHandle) -> bool {
+    let manager = app.lock_manager();
+    let profile = manager.active_profile();
+    let Some(sync) = profile.sync.as_ref() else {
+        return false;
+    };
+    !crate::profile::sync::auth::user_info(app)
+        .is_some_and(|user| user.discord_id == sync.owner_discord_id())
+}
+
 #[command]
 pub fn remove_mod(uuid: Uuid, app: AppHandle) -> Result<ActionResult> {
+    // Compute the consumer flag BEFORE locking the manager — is_sync_consumer
+    // locks the manager itself, so doing it after would deadlock the Mutex.
+    let consumer = is_sync_consumer(&app);
+    {
+        let manager = app.lock_manager();
+        let profile = manager.active_profile();
+        if profile.is_mod_locked(uuid, consumer) {
+            return Err(
+                eyre::eyre!("this mod is part of the synced set and cannot be removed").into()
+            );
+        }
+    }
     mod_action_command(app, |profile, thunderstore| {
         profile.remove_mod(uuid, thunderstore)
     })
@@ -276,6 +300,14 @@ pub fn remove_mod(uuid: Uuid, app: AppHandle) -> Result<ActionResult> {
 
 #[command]
 pub fn toggle_mod(uuid: Uuid, app: AppHandle) -> Result<ActionResult> {
+    let consumer = is_sync_consumer(&app);
+    {
+        let manager = app.lock_manager();
+        let profile = manager.active_profile();
+        if profile.is_mod_locked(uuid, consumer) {
+            return Err(eyre::eyre!("this mod is part of the synced set and cannot be toggled").into());
+        }
+    }
     mod_action_command(app, |profile, thunderstore| {
         profile.toggle_mod(uuid, thunderstore)
     })
@@ -300,9 +332,18 @@ where
 
 #[command]
 pub fn force_remove_mods(uuids: Vec<Uuid>, app: AppHandle) -> Result<()> {
+    let consumer = is_sync_consumer(&app);
     let mut manager = app.lock_manager();
 
     let profile = manager.active_profile_mut();
+    for package_uuid in &uuids {
+        if profile.is_mod_locked(*package_uuid, consumer) {
+            return Err(
+                eyre::eyre!("one or more mods are part of the synced set and cannot be removed")
+                    .into(),
+            );
+        }
+    }
     for package_uuid in uuids {
         profile.force_remove_mod(package_uuid)?;
     }

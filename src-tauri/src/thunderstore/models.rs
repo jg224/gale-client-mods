@@ -277,6 +277,10 @@ pub struct FrontendVersion {
 pub struct FrontendProfileMod {
     pub enabled: bool,
     pub config_file: Option<PathBuf>,
+    /// Fork: true if this mod came from a sync pull (synced set), false if the
+    /// local user installed it. Drives per-mod lock state in the UI.
+    #[serde(default)]
+    pub from_sync: bool,
     #[serde(flatten)]
     pub data: FrontendMod,
 }

@@ -64,6 +64,14 @@ pub struct SyncProfileData {
     missing: bool,
 }
 
+impl SyncProfileData {
+    /// The profile owner's Discord ID. Used by the per-mod lock gate to exempt
+    /// the owner.
+    pub fn owner_discord_id(&self) -> &str {
+        &self.owner.discord_id
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 struct FullUserInfo {

@@ -53,13 +53,16 @@
 					fullName: mod.name,
 					backend: mod.backend
 				}),
-			showFor: (_, profileLocked) => !profileLocked
+			// Fork: only synced mods are locked; client mods can be uninstalled.
+			showFor: (mod, profileLocked) => !(profileLocked && mod.fromSync === true)
 		},
 		{
 			label: m.page_modContextItem_changeVersion(),
 			icon: 'mdi:edit',
 			onclick: () => {},
-			showFor: (mod, profileLocked) => mod.versions.length > 1 && !profileLocked,
+			// Fork: only synced mods are locked.
+			showFor: (mod, profileLocked) =>
+				mod.versions.length > 1 && !(profileLocked && mod.fromSync === true),
 			children: (mod) =>
 				mod.versions.map((version) => ({
 					label: version.name,
@@ -211,6 +214,19 @@
 	);
 
 	let locked = $derived(profiles.activeLocked);
+
+	// Fork: split mods into the owner's synced set and the user's own (client)
+	// mods. On a synced profile the two groups are rendered as separate sections
+	// and have different permissions — synced mods stay locked, client mods are
+	// fully manageable (uninstall, version change, toggle, config).
+	let isSyncedProfile = $derived(profiles.active?.sync != null);
+	let syncedItems = $derived(items.filter((item) => item.type === 'mod' && item.mod.fromSync === true));
+	let clientItems = $derived(items.filter((item) => item.type === 'mod' && item.mod.fromSync !== true));
+
+	/** Per-mod lock: a mod is locked iff the profile is locked AND it's synced. */
+	function modLocked(mod: Mod): boolean {
+		return locked && mod.fromSync === true;
+	}
 </script>
 
 <div class="flex grow overflow-hidden">
@@ -243,6 +259,76 @@
 					{m.page_modList_noResults_2()}
 				</HelpCard>
 			{/if}
+		{:else if isSyncedProfile}
+			<!-- Fork: synced profile — render the owner's set and the user's own
+			     mods as separate sections. -->
+			{#if syncedItems.length > 0}
+				<div class="text-primary-200 mb-1 mt-1 text-sm font-semibold uppercase tracking-wide">
+					<Icon icon="mdi:cloud-lock" class="mr-1 inline" inline />
+					Synced mods
+					<span class="text-primary-400 font-normal">({syncedItems.length})</span>
+				</div>
+				<ReorderableList bind:items={syncedItems} {onmove} reorderable={false}>
+					{#snippet mod({ mod, index })}
+						<ProfileModListItem
+							{mod}
+							{index}
+							locked={modLocked(mod)}
+							{contextItems}
+							selected={selectedMod?.uuid === mod.uuid}
+							ontoggle={(newState) => toggleMod(mod, newState)}
+							onclick={() => {
+								if (selectedMod?.uuid === mod.uuid) {
+									selectedMod = null;
+								} else {
+									selectedMod = mod;
+								}
+							}}
+						/>
+					{/snippet}
+				</ReorderableList>
+			{/if}
+
+			{#if clientItems.length > 0}
+				<div
+					class="text-primary-200 mb-1 text-sm font-semibold uppercase tracking-wide"
+					class:mt-4={syncedItems.length > 0}
+				>
+					<Icon icon="mdi:account" class="mr-1 inline" inline />
+					Your mods
+					<span class="text-primary-400 font-normal">({clientItems.length})</span>
+				</div>
+				<ReorderableList bind:items={clientItems} {onmove} {reorderable}>
+					{#snippet mod({ mod, index })}
+						<ProfileModListItem
+							{mod}
+							{index}
+							locked={false}
+							{contextItems}
+							selected={selectedMod?.uuid === mod.uuid}
+							ontoggle={(newState) => toggleMod(mod, newState)}
+							onclick={() => {
+								if (selectedMod?.uuid === mod.uuid) {
+									selectedMod = null;
+								} else {
+									selectedMod = mod;
+								}
+							}}
+						/>
+					{/snippet}
+				</ReorderableList>
+			{/if}
+
+			{#if clientItems.length === 0 && syncedItems.length > 0}
+				<HelpCard class="mt-2" title="Add your own mods" icon="mdi:account-plus">
+					You can install mods from the
+					<a href="/browse" class="text-accent-400 hover:text-accent-300 hover:underline"
+						>browser</a
+					>
+					or drop a local <code>.zip</code> into this window. Your mods are kept separate
+					from the synced set and survive every sync pull.
+				</HelpCard>
+			{/if}
 		{:else}
 			<ReorderableList bind:items {onmove} {reorderable}>
 				{#snippet mod({ mod, index })}
@@ -267,8 +353,13 @@
 	</div>
 
 	{#if selectedMod}
-		<ModDetails {locked} mod={selectedMod} {contextItems} onclose={() => (selectedMod = null)}>
-			{#if isOutdated(selectedMod) && !locked}
+		<ModDetails
+			locked={modLocked(selectedMod)}
+			mod={selectedMod}
+			{contextItems}
+			onclose={() => (selectedMod = null)}
+		>
+			{#if isOutdated(selectedMod) && !modLocked(selectedMod)}
 				<Button
 					color="accent"
 					size="lg"
