@@ -37,6 +37,9 @@ export const forceToggleMods = (uuids: string[]) => invoke('force_toggle_mods', 
 export const setAllModsState = (enable: boolean) =>
 	invoke<number>('set_all_mods_state', { enable });
 export const removeDisabledMods = () => invoke<number>('remove_disabled_mods');
+/** Fork (owner): mark a synced mod optional (client may toggle it, choice sticks). */
+export const setModOptional = (uuid: string, optional: boolean) =>
+	invoke('set_mod_optional', { uuid, optional });
 export const getDependants = (uuid: string) =>
 	invoke<{ fullName: string; preferredVersion: string | null }[]>('get_dependants', { uuid });
 export const openDir = () => invoke('open_profile_dir');

@@ -1,10 +1,11 @@
-use std::{borrow::Cow, env, fmt::Display, io::Cursor, sync::LazyLock};
+use std::{borrow::Cow, collections::HashSet, env, fmt::Display, io::Cursor, sync::LazyLock};
 
 use chrono::{DateTime, Utc};
 use eyre::{Context, OptionExt, Result, bail, eyre};
 use reqwest::{Method, StatusCode};
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
+use uuid::Uuid;
 
 use crate::{
     profile::{import::ImportOptions, install::InstallOptions},
@@ -62,6 +63,12 @@ pub struct SyncProfileData {
     updated_at: DateTime<Utc>,
     #[serde(default)]
     missing: bool,
+    /// Fork: package uuids of OPTIONAL synced mods the local client has
+    /// disabled. Re-applied on every pull, overriding the manifest's `enabled`,
+    /// so the client's per-mod disable choice on optional mods sticks across
+    /// syncs. Only meaningful for client-side (non-owner) profiles.
+    #[serde(default)]
+    pub disabled_optional: HashSet<Uuid>,
 }
 
 impl SyncProfileData {
@@ -98,6 +105,7 @@ impl From<SyncProfileMetadata> for SyncProfileData {
             synced_at: value.updated_at,
             updated_at: value.updated_at,
             missing: false,
+            disabled_optional: HashSet::new(),
         }
     }
 }
@@ -140,6 +148,7 @@ async fn create_profile(app: &AppHandle) -> Result<String> {
             synced_at: response.updated_at,
             updated_at: response.updated_at,
             missing: false,
+            disabled_optional: HashSet::new(),
         });
 
         profile.save(app, true)?;
@@ -260,8 +269,13 @@ pub async fn pull_profile(dry_run: bool, app: &AppHandle) -> Result<()> {
 
             match metadata {
                 Some(metadata) => {
+                    // Preserve the client's sticky disabled-optional set across
+                    // metadata refreshes (the From impl resets it to empty).
+                    let preserved_disabled =
+                        std::mem::take(&mut sync.disabled_optional);
                     *sync = SyncProfileData {
                         synced_at: sync.synced_at,
+                        disabled_optional: preserved_disabled,
                         ..metadata.into()
                     };
                 }

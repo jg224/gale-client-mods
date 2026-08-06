@@ -308,9 +308,41 @@ pub fn toggle_mod(uuid: Uuid, app: AppHandle) -> Result<ActionResult> {
             return Err(eyre::eyre!("this mod is part of the synced set and cannot be toggled").into());
         }
     }
-    mod_action_command(app, |profile, thunderstore| {
+
+    // Run the toggle, then — if this was an optional synced mod on a client
+    // profile — record the resulting state in the sticky disabled_optional set
+    // so it survives future pulls.
+    let response = mod_action_command(app.clone(), |profile, thunderstore| {
         profile.toggle_mod(uuid, thunderstore)
-    })
+    })?;
+
+    if matches!(response, ActionResult::Done) {
+        let mut manager = app.lock_manager();
+        let profile = manager.active_profile_mut();
+        let is_optional_synced = profile
+            .mods
+            .iter()
+            .find(|m| m.uuid() == uuid)
+            .is_some_and(|m| m.from_sync && m.optional);
+        if is_optional_synced {
+            if let Some(sync) = profile.sync.as_mut() {
+                let now_enabled = profile
+                    .mods
+                    .iter()
+                    .find(|m| m.uuid() == uuid)
+                    .map(|m| m.enabled)
+                    .unwrap_or(true);
+                if now_enabled {
+                    sync.disabled_optional.remove(&uuid);
+                } else {
+                    sync.disabled_optional.insert(uuid);
+                }
+                profile.save(&app, false)?;
+            }
+        }
+    }
+
+    Ok(response)
 }
 
 fn mod_action_command<F>(app: AppHandle, action: F) -> Result<ActionResult>
@@ -397,6 +429,26 @@ pub fn remove_disabled_mods(app: AppHandle) -> Result<usize> {
     profile.save(&app, true)?;
 
     Ok(len)
+}
+
+/// Fork (owner): mark a synced mod as "optional" — clients may individually
+/// disable it and that choice sticks across pulls. Only meaningful on a synced
+/// profile the local user owns.
+#[command]
+pub fn set_mod_optional(uuid: Uuid, optional: bool, app: AppHandle) -> Result<()> {
+    let mut manager = app.lock_manager();
+    let profile = manager.active_profile_mut();
+
+    let profile_mod = profile
+        .mods
+        .iter_mut()
+        .find(|m| m.uuid() == uuid)
+        .ok_or_eyre("mod not found")?;
+
+    profile_mod.optional = optional;
+    profile.save(&app, true)?;
+
+    Ok(())
 }
 
 #[command]

@@ -52,6 +52,12 @@ pub struct R2Mod {
     pub enabled: bool,
     #[serde(default)]
     pub source: Backend,
+    /// Fork: owner marks the mod as "optional" — auto-installed on pull, but
+    /// the client may individually enable/disable it and that choice sticks
+    /// across syncs. Additive field; ignored by vanilla Gale (which treats
+    /// the mod as a regular synced mod). Defaults to false.
+    #[serde(default)]
+    pub optional: bool,
 }
 
 impl R2Mod {
@@ -100,8 +106,11 @@ pub(super) fn export_zip(profile: &Profile, writer: impl Write + Seek, game: Gam
     let mut zip = ZipWriter::new(writer);
 
     let mods = profile
-        .thunderstore_mods()
-        .map(|(ts_mod, enabled)| {
+        .mods
+        .iter()
+        .filter_map(|profile_mod| {
+            // Only export Thunderstore mods (local mods aren't part of the manifest).
+            let ts_mod = profile_mod.kind.as_thunderstore()?;
             let ident = ts_mod.ident.without_version();
             let version = ts_mod
                 .ident
@@ -110,12 +119,14 @@ pub(super) fn export_zip(profile: &Profile, writer: impl Write + Seek, game: Gam
                 .expect("thunderstore version was not a semver")
                 .into();
 
-            R2Mod {
+            Some(R2Mod {
                 ident,
                 version,
-                enabled,
+                enabled: profile_mod.enabled,
                 source: ts_mod.id.backend,
-            }
+                // Fork: ship the owner's optional flag so clients honor it.
+                optional: profile_mod.optional,
+            })
         })
         .collect();
 

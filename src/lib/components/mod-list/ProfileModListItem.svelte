@@ -13,9 +13,11 @@
 		locked: boolean;
 		ontoggle?: (newState: boolean) => void;
 		onclick?: MouseEventHandler<HTMLDivElement>;
+		children?: import('svelte').Snippet;
 	};
 
-	let { mod, index, selected, contextItems, locked, ontoggle, onclick }: Props = $props();
+	let { mod, index, selected, contextItems, locked, ontoggle, onclick, children }: Props =
+		$props();
 </script>
 
 <ModItemContext {mod} {locked} {contextItems}>
@@ -24,6 +26,7 @@
 			<!-- svelte-ignore a11y_click_events_have_key_events -->
 			<!-- svelte-ignore a11y_no_static_element_interactions -->
 			<div class="contents" onclick={(evt) => evt.stopPropagation()}>
+				{@render children?.()}
 				<Switch.Root
 					disabled={locked}
 					checked={mod.enabled ?? true}

@@ -4,9 +4,19 @@ This document lists every modification made in this fork relative to upstream
 [`Kesomannen/gale`](https://github.com/Kesomannen/gale) at the baseline commit
 `759e17a1` ("Update changelog and add check messages script").
 
-The fork's purpose is to let consumers of a synced profile install their own
+The fork's purpose is to let clients of a synced profile install their own
 mods, manage them freely, and keep them across profile sync pulls — while the
-owner's synced set stays protected.
+owner's synced set stays protected. It adds an "optional" tier for mods the
+owner wants to ship but allow clients to individually disable.
+
+## Tiers on a synced profile
+
+| Tier | Owner sets | Client pull | Client control | Sticks across pulls? |
+|---|---|---|---|---|
+| **Synced** (required) | in manifest | auto-install | locked (no toggle/uninstall) | n/a |
+| **Optional** | in manifest, marked optional | auto-install | toggle enable/disable | ✅ per-mod, per-client |
+| **Client** | not in manifest | client adds | full control | ✅ retained |
+| (owner-removed) | removed from manifest | auto-uninstall | n/a | n/a |
 
 ## Summary of behavior change
 

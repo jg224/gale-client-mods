@@ -206,6 +206,22 @@ fn prepare_import(
     let mut manager = app.lock_manager();
     let thunderstore = app.lock_thunderstore();
 
+    // Fork: build the optional-flag map (package_uuid -> optional) from the
+    // manifest, so incremental_update can stamp it onto each synced mod.
+    let optional_flags: HashMap<Uuid, bool> = mods
+        .iter()
+        .map(|r2_mod| {
+            let uuid = r2_mod
+                .into_install(&thunderstore)
+                .ok()
+                .map(|install| install.mod_id().package_uuid)
+                .unwrap_or_else(|| {
+                    Uuid::new_v5(&Uuid::NAMESPACE_URL, r2_mod.ident.to_string().as_bytes())
+                });
+            (uuid, r2_mod.optional)
+        })
+        .collect();
+
     let installs = mods
         .into_iter()
         .map(|r2_mod| r2_mod.into_install(&thunderstore))
@@ -217,7 +233,9 @@ fn prepare_import(
         Some(profile_index) => {
             // overwrite an existing profile
             let profile = game.set_active_profile(profile_index)?;
-            let to_install = incremental_update(options.merge, installs, profile)?.collect_vec();
+            let to_install =
+                incremental_update(options.merge, installs, profile, &optional_flags)?
+                    .collect_vec();
 
             (profile, to_install)
         }
@@ -259,6 +277,7 @@ fn incremental_update(
     merge: bool,
     installs: impl IntoIterator<Item = ModInstall>,
     profile: &mut Profile,
+    optional_flags: &HashMap<Uuid, bool>,
 ) -> Result<impl Iterator<Item = ModInstall>> {
     let current_mods: HashMap<ModId, bool> = profile
         .thunderstore_mods()
@@ -321,13 +340,15 @@ fn incremental_update(
     }
 
     // On a synced pull, tag every incoming (owner) mod as part of the synced
-    // set, and clear the tag for anything we're about to install fresh.
+    // set and stamp the optional flag from the manifest. Non-synced mods and
+    // client-installed mods keep from_sync = false / optional = false.
     if is_synced {
         let incoming_uuids: HashSet<Uuid> =
             new_ids.iter().map(|id| id.package_uuid).collect();
         for profile_mod in &mut profile.mods {
             if incoming_uuids.contains(&profile_mod.uuid()) {
                 profile_mod.from_sync = true;
+                profile_mod.optional = *optional_flags.get(&profile_mod.uuid()).unwrap_or(&false);
             }
         }
     }
@@ -337,6 +358,41 @@ fn incremental_update(
         .filter(|id| *current_mods.get(*id).unwrap() != new_mods.get(id).unwrap().enabled());
     for mod_id in to_toggle {
         profile.force_toggle_mod(mod_id.package_uuid)?;
+    }
+
+    // Fork: re-apply the client's sticky disable choices for optional mods.
+    // The manifest may have re-enabled an optional mod the client previously
+    // disabled; override that here so the client's choice persists.
+    if let Some(sync) = profile.sync.as_mut() {
+        // Drop entries for optional mods the owner no longer ships.
+        sync.disabled_optional.retain(|uuid| {
+            profile
+                .mods
+                .iter()
+                .any(|m| m.uuid() == *uuid && m.optional)
+        });
+    }
+    // Collect the disabled-optional uuids before borrowing profile mutably
+    // for the toggle (can't hold an immutable borrow of sync across it).
+    let to_disable: Vec<Uuid> = profile
+        .sync
+        .as_ref()
+        .map(|sync| {
+            sync.disabled_optional
+                .iter()
+                .copied()
+                .filter(|uuid| {
+                    profile
+                        .mods
+                        .iter()
+                        .find(|m| m.uuid() == *uuid)
+                        .is_some_and(|m| m.enabled)
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    for uuid in to_disable {
+        let _ = profile.force_toggle_mod(uuid);
     }
 
     // we have to clone and collect the ids because new_ids.difference() borrows new_mods,

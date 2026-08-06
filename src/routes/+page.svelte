@@ -23,6 +23,7 @@
 	import ModListFilters from '$lib/components/mod-list/ModListFilters.svelte';
 	import UnknownModsBanner from '$lib/components/mod-list/UnknownModsBanner.svelte';
 	import profiles from '$lib/state/profile.svelte';
+	import auth from '$lib/state/auth.svelte';
 	import { profileQuery } from '$lib/state/misc.svelte';
 	import { m } from '$lib/paraglide/messages';
 	import ReorderableList from '$lib/components/profile/ReorderableList.svelte';
@@ -215,17 +216,42 @@
 
 	let locked = $derived(profiles.activeLocked);
 
-	// Fork: split mods into the owner's synced set and the user's own (client)
-	// mods. On a synced profile the two groups are rendered as separate sections
-	// and have different permissions — synced mods stay locked, client mods are
-	// fully manageable (uninstall, version change, toggle, config).
+	// Fork: split mods into three tiers for synced profiles:
+	//   - required synced (locked)
+	//   - optional synced (toggleable, choice persists)
+	//   - client (fully manageable)
+	// Each section is collapsible.
 	let isSyncedProfile = $derived(profiles.active?.sync != null);
-	let syncedItems = $derived(items.filter((item) => item.type === 'mod' && item.mod.fromSync === true));
+	let syncedItems = $derived(
+		items.filter((item) => item.type === 'mod' && item.mod.fromSync === true && item.mod.optional !== true)
+	);
+	let optionalItems = $derived(
+		items.filter((item) => item.type === 'mod' && item.mod.fromSync === true && item.mod.optional === true)
+	);
 	let clientItems = $derived(items.filter((item) => item.type === 'mod' && item.mod.fromSync !== true));
 
-	/** Per-mod lock: a mod is locked iff the profile is locked AND it's synced. */
+	// Collapse state for the three sections (persisted across renders).
+	let syncedCollapsed = $state(false);
+	let optionalCollapsed = $state(false);
+	let clientCollapsed = $state(false);
+
+	/** Owner of the active synced profile? The owner sees an "optional" toggle. */
+	let isSyncOwner = $derived(
+		profiles.active?.sync != null &&
+			auth.user != null &&
+			profiles.active.sync.owner.discordId === auth.user.discordId
+	);
+
+	async function toggleOptional(mod: Mod, optional: boolean) {
+		await api.profile.setModOptional(mod.uuid, optional);
+		mod.optional = optional;
+	}
+
+	/** Per-mod lock: a mod is locked iff the profile is locked AND it's a
+	 * non-optional synced mod. Optional synced mods and client mods are
+	 * toggleable / manageable. */
 	function modLocked(mod: Mod): boolean {
-		return locked && mod.fromSync === true;
+		return locked && mod.fromSync === true && mod.optional !== true;
 	}
 </script>
 
@@ -260,66 +286,148 @@
 				</HelpCard>
 			{/if}
 		{:else if isSyncedProfile}
-			<!-- Fork: synced profile — render the owner's set and the user's own
-			     mods as separate sections. -->
+			<!-- Fork: synced profile — three collapsible sections:
+			     Synced (required, locked) / Optional (toggleable, sticky) / Your mods. -->
 			{#if syncedItems.length > 0}
-				<div class="text-primary-200 mb-1 mt-1 text-sm font-semibold uppercase tracking-wide">
+				<button
+					class="text-primary-200 hover:text-primary-100 mb-1 mt-1 flex w-full items-center text-sm font-semibold uppercase tracking-wide"
+					onclick={() => (syncedCollapsed = !syncedCollapsed)}
+				>
+					<Icon
+						icon={syncedCollapsed ? 'mdi:chevron-right' : 'mdi:chevron-down'}
+						class="mr-1 inline"
+						inline
+					/>
 					<Icon icon="mdi:cloud-lock" class="mr-1 inline" inline />
 					Synced mods
-					<span class="text-primary-400 font-normal">({syncedItems.length})</span>
-				</div>
-				<ReorderableList bind:items={syncedItems} {onmove} reorderable={false}>
-					{#snippet mod({ mod, index })}
-						<ProfileModListItem
-							{mod}
-							{index}
-							locked={modLocked(mod)}
-							{contextItems}
-							selected={selectedMod?.uuid === mod.uuid}
-							ontoggle={(newState) => toggleMod(mod, newState)}
-							onclick={() => {
-								if (selectedMod?.uuid === mod.uuid) {
-									selectedMod = null;
-								} else {
-									selectedMod = mod;
-								}
-							}}
-						/>
-					{/snippet}
-				</ReorderableList>
+					<span class="text-primary-400 ml-1 font-normal">({syncedItems.length})</span>
+				</button>
+				{#if !syncedCollapsed}
+					<ReorderableList bind:items={syncedItems} {onmove} reorderable={false}>
+						{#snippet mod({ mod, index })}
+							<ProfileModListItem
+								{mod}
+								{index}
+								locked={modLocked(mod)}
+								{contextItems}
+								selected={selectedMod?.uuid === mod.uuid}
+								ontoggle={(newState) => toggleMod(mod, newState)}
+								onclick={() => {
+									if (selectedMod?.uuid === mod.uuid) {
+										selectedMod = null;
+									} else {
+										selectedMod = mod;
+									}
+								}}
+							>
+								{#if isSyncOwner}
+									<button
+										class="text-accent-400 hover:text-accent-300 ml-auto shrink-0 text-xs hover:underline"
+										title="Mark as optional — clients may disable this mod and keep that choice"
+										onclick={(e) => {
+											e.stopPropagation();
+											toggleOptional(mod, true);
+										}}
+									>
+										Mark optional
+									</button>
+								{/if}
+							</ProfileModListItem>
+						{/snippet}
+					</ReorderableList>
+				{/if}
+			{/if}
+
+			{#if optionalItems.length > 0}
+				<button
+					class="text-primary-200 hover:text-primary-100 mb-1 flex w-full items-center text-sm font-semibold uppercase tracking-wide"
+					class:mt-4={syncedItems.length > 0}
+					onclick={() => (optionalCollapsed = !optionalCollapsed)}
+				>
+					<Icon
+						icon={optionalCollapsed ? 'mdi:chevron-right' : 'mdi:chevron-down'}
+						class="mr-1 inline"
+						inline
+					/>
+					<Icon icon="mdi:toggle-switch-outline" class="mr-1 inline" inline />
+					Optional mods
+					<span class="text-primary-400 ml-1 font-normal">({optionalItems.length})</span>
+				</button>
+				{#if !optionalCollapsed}
+					<ReorderableList bind:items={optionalItems} {onmove} reorderable={false}>
+						{#snippet mod({ mod, index })}
+							<ProfileModListItem
+								{mod}
+								{index}
+								locked={false}
+								{contextItems}
+								selected={selectedMod?.uuid === mod.uuid}
+								ontoggle={(newState) => toggleMod(mod, newState)}
+								onclick={() => {
+									if (selectedMod?.uuid === mod.uuid) {
+										selectedMod = null;
+									} else {
+										selectedMod = mod;
+									}
+								}}
+							>
+								{#if isSyncOwner}
+									<button
+										class="text-accent-400 hover:text-accent-300 ml-auto shrink-0 text-xs hover:underline"
+										title="Make this required again"
+										onclick={(e) => {
+											e.stopPropagation();
+											toggleOptional(mod, false);
+										}}
+									>
+										Make required
+									</button>
+								{/if}
+							</ProfileModListItem>
+						{/snippet}
+					</ReorderableList>
+				{/if}
 			{/if}
 
 			{#if clientItems.length > 0}
-				<div
-					class="text-primary-200 mb-1 text-sm font-semibold uppercase tracking-wide"
-					class:mt-4={syncedItems.length > 0}
+				<button
+					class="text-primary-200 hover:text-primary-100 mb-1 flex w-full items-center text-sm font-semibold uppercase tracking-wide"
+					class:mt-4={syncedItems.length > 0 || optionalItems.length > 0}
+					onclick={() => (clientCollapsed = !clientCollapsed)}
 				>
+					<Icon
+						icon={clientCollapsed ? 'mdi:chevron-right' : 'mdi:chevron-down'}
+						class="mr-1 inline"
+						inline
+					/>
 					<Icon icon="mdi:account" class="mr-1 inline" inline />
 					Your mods
-					<span class="text-primary-400 font-normal">({clientItems.length})</span>
-				</div>
-				<ReorderableList bind:items={clientItems} {onmove} {reorderable}>
-					{#snippet mod({ mod, index })}
-						<ProfileModListItem
-							{mod}
-							{index}
-							locked={false}
-							{contextItems}
-							selected={selectedMod?.uuid === mod.uuid}
-							ontoggle={(newState) => toggleMod(mod, newState)}
-							onclick={() => {
-								if (selectedMod?.uuid === mod.uuid) {
-									selectedMod = null;
-								} else {
-									selectedMod = mod;
-								}
-							}}
-						/>
-					{/snippet}
-				</ReorderableList>
+					<span class="text-primary-400 ml-1 font-normal">({clientItems.length})</span>
+				</button>
+				{#if !clientCollapsed}
+					<ReorderableList bind:items={clientItems} {onmove} {reorderable}>
+						{#snippet mod({ mod, index })}
+							<ProfileModListItem
+								{mod}
+								{index}
+								locked={false}
+								{contextItems}
+								selected={selectedMod?.uuid === mod.uuid}
+								ontoggle={(newState) => toggleMod(mod, newState)}
+								onclick={() => {
+									if (selectedMod?.uuid === mod.uuid) {
+										selectedMod = null;
+									} else {
+										selectedMod = mod;
+									}
+								}}
+							/>
+						{/snippet}
+					</ReorderableList>
+				{/if}
 			{/if}
 
-			{#if clientItems.length === 0 && syncedItems.length > 0}
+			{#if clientItems.length === 0 && (syncedItems.length > 0 || optionalItems.length > 0)}
 				<HelpCard class="mt-2" title="Add your own mods" icon="mdi:account-plus">
 					You can install mods from the
 					<a href="/browse" class="text-accent-400 hover:text-accent-300 hover:underline"

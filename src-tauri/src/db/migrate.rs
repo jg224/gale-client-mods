@@ -190,6 +190,7 @@ impl From<legacy::ProfileMod> for ProfileMod {
             install_time: legacy.install_time,
             // Legacy mods predate sync tagging; treat them as client-installed.
             from_sync: false,
+            optional: false,
             kind: legacy.kind.into(),
         }
     }

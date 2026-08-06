@@ -97,6 +97,12 @@ pub struct ProfileMod {
     #[serde(default)]
     pub from_sync: bool,
 
+    /// Fork: owner has marked this synced mod "optional" — clients may
+    /// individually disable it and that choice sticks across pulls. Only
+    /// meaningful when `from_sync` is true. Defaults to `false`.
+    #[serde(default)]
+    pub optional: bool,
+
     #[serde(flatten)]
     pub kind: ProfileModKind,
 }
@@ -126,6 +132,7 @@ impl ProfileMod {
             install_time: Utc::now(),
             enabled: true,
             from_sync: false,
+            optional: false,
         }
     }
 

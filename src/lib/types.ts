@@ -133,6 +133,12 @@ export type Mod = {
 	 * set), false if the local user installed it. Drives per-mod lock state.
 	 */
 	fromSync?: boolean;
+	/**
+	 * Fork: owner marked this synced mod "optional" — the client may enable or
+	 * disable it individually, and that choice sticks across sync pulls. Only
+	 * meaningful when fromSync is true.
+	 */
+	optional?: boolean;
 };
 
 export type ModVersion = {

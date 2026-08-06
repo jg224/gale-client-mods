@@ -281,6 +281,10 @@ pub struct FrontendProfileMod {
     /// local user installed it. Drives per-mod lock state in the UI.
     #[serde(default)]
     pub from_sync: bool,
+    /// Fork: owner marked this synced mod "optional" — client may disable it
+    /// and that choice sticks across pulls. Only meaningful with from_sync.
+    #[serde(default)]
+    pub optional: bool,
     #[serde(flatten)]
     pub data: FrontendMod,
 }

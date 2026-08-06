@@ -78,9 +78,9 @@ impl Profile {
     /// Fork: is the given mod locked against local changes?
     ///
     /// A mod is locked when it is part of the synced set (`from_sync == true`)
-    /// on a profile the local user doesn't own. Client-installed mods
-    /// (`from_sync == false`) are always manageable; on a non-synced profile,
-    /// nothing is locked.
+    /// AND not optional, on a profile the local user doesn't own. Client mods
+    /// (`from_sync == false`), optional synced mods (toggleable, sticky), and
+    /// everything on a non-synced/owner profile are never locked.
     ///
     /// `is_consumer` should be `true` when the profile is synced and the local
     /// user is not its owner.
@@ -88,11 +88,12 @@ impl Profile {
         if !is_consumer {
             return false;
         }
-        // Consumer: only synced mods are locked.
+        // Consumer: only non-optional synced mods are locked. Optional mods
+        // are freely toggleable (the choice persists in disabled_optional).
         self.mods
             .iter()
             .find(|m| m.uuid() == uuid)
-            .is_some_and(|m| m.from_sync)
+            .is_some_and(|m| m.from_sync && !m.optional)
     }
 
     pub fn remove_mod(&mut self, uuid: Uuid, thunderstore: &Thunderstore) -> Result<ActionResult> {

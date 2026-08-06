@@ -14,6 +14,7 @@ struct QueryableProfileMod<'a> {
     enabled: bool,
     install_time: DateTime<Utc>,
     from_sync: bool,
+    optional: bool,
     kind: QueryableProfileModKind<'a>,
     index: usize,
 }
@@ -41,6 +42,7 @@ impl<'a> QueryableProfileMod<'a> {
             enabled: profile_mod.enabled,
             install_time: profile_mod.install_time,
             from_sync: profile_mod.from_sync,
+            optional: profile_mod.optional,
             kind,
             index,
         })
@@ -150,6 +152,7 @@ impl Profile {
                     data,
                     enabled: queryable.enabled,
                     from_sync: queryable.from_sync,
+                    optional: queryable.optional,
                     config_file: self.linked_config.get(&uuid).cloned(),
                 }
             })
