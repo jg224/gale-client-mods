@@ -1,223 +1,91 @@
-![Gale](https://raw.githubusercontent.com/Kesomannen/gale/master/images/banner.png)
+# Gale — client mods on synced profiles
 
-[![Thunderstore Version](https://img.shields.io/thunderstore/v/Kesomannen/GaleModManager?style=flat)](https://thunderstore.io/c/lethal-company/p/Kesomannen/GaleModManager/)
-[![Discord](https://img.shields.io/discord/1288196347597688912?style=flat&label=discord)](https://discord.gg/sfuWXRfeTt)
-[![GitHub License](https://img.shields.io/github/license/Kesomannen/gale?style=flat)](https://github.com/Kesomannen/gale?tab=GPL-3.0-1-ov-file#readme)
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPL--3.0-blue?style=flat)](./LICENSE.md)
 
-A modern and lightweight mod manager for [Thunderstore](https://thunderstore.io), built with [Svelte](https://kit.svelte.dev/) and [Tauri](https://tauri.app/).
+A fork of [Kesomannen/gale](https://github.com/Kesomannen/gale) — a mod manager
+for [Thunderstore](https://thunderstore.io) — that adds **tiered mods on synced
+profiles**: the profile owner's required set stays protected, while everyone
+else can install and fully manage their own mods, and both survive every sync
+pull.
 
----
+## What this fork adds
 
-> ## Fork notice — consumer-added mods on synced profiles
->
-> This is a fork of [Kesomannen/gale](https://github.com/Kesomannen/gale) licensed
-> under [GPL-3.0](./LICENSE.md). It adds one feature on top of upstream Gale:
->
-> **Consumers of a synced profile can install their own mods, manage them
-> freely, and keep them across sync pulls.**
->
-> - ✅ Install mods from Thunderstore into a synced profile (browse → install works while locked)
-> - ✅ Drag-and-drop local `.zip` / `.dll` mods into a synced profile
-> - ✅ Fully manage your own mods — uninstall, change version, toggle, edit config
-> - ✅ **Consumer-added mods are retained across every sync pull** — the core change
-> - 🔒 The owner's synced set stays protected and is shown in its own "Synced mods" section
->
-> ### How it works
->
-> Each installed mod is tagged `from_sync` (true = came from the owner's synced
-> set; false = installed by the local user). On a synced profile the mod list
-> splits into two sections: **"Synced mods"** (locked) and **"Your mods"**
-> (fully manageable). The tag is set client-side at pull time — **the owner
-> uses vanilla Gale** and never sees it; only the fork (on consumer machines)
-> sets and reads it.
->
-> The reconcile is also precise: on a pull, only mods the **owner dropped**
-> from the manifest are removed; genuine client mods are retained untouched.
->
-> See [CHANGES.md](./CHANGES.md) for the exact diff against upstream and
-> [CONTRIBUTING.md](./CONTRIBUTING.md) for build instructions.
->
-> **Upstream credit:** © Kesomannen — this fork only exists because of the
-> excellent original work.
+On a synced profile, the mod list splits into three collapsible sections:
 
----
+| Section | Source | Who controls it | Survives pulls |
+|---|---|---|---|
+| **Synced mods** | Owner's profile (required) | Owner only — locked for clients | ✅ (matches owner) |
+| **Optional mods** | Owner's profile, marked optional | Owner marks them; clients may enable/disable each one individually | ✅ choice persists |
+| **Your mods** | Installed locally by the client | Full control — install, uninstall, change version, toggle, edit config | ✅ retained |
 
-## Features
+- ✅ Install mods from Thunderstore into a synced profile (browse → install works while the synced set is locked)
+- ✅ Drag-and-drop local `.zip` / `.dll` mods into a synced profile
+- ✅ **Client-installed mods are retained across every sync pull** — the core change
+- ✅ Optional mods remember each client's enable/disable choice across pulls
+- 🔒 The owner's required set stays protected — clients can't uninstall, change version, or disable it
+- 📦 If the owner removes a mod from the profile, it's cleanly removed on clients' next pull
 
-- Support for all 150+ games on Thunderstore, including Lethal Company, R.E.P.O and Risk Of Rain 2
-- An intuitive and responsive interface
-- Tiny download size and resource usage
-- Feature-rich mod config editor
-- Automatic profile syncing
+Everything else in Gale works as upstream: same sync server, same profiles,
+same config editor. The fork installs over an existing Gale install and keeps
+your data.
 
-[...and more](https://github.com/Kesomannen/gale/wiki/Features)
+## How it works
 
-## Installation
+Each installed mod is tagged `from_sync` (persisted locally):
 
-### Windows
+- `true` — came from the owner's synced set. Required mods are locked;
+  optional mods (marked by the owner via a per-mod button) are toggleable.
+- `false` — installed by the local user. Fully manageable, never touched by sync.
 
-<details>
-  <summary>
-    <b>Manual (Thunderstore)</b>
-  </summary>
-  
-  - Go to the [Thunderstore page](https://thunderstore.io/c/lethal-company/p/Kesomannen/GaleModManager/) and click _Manual Download_.
-  - Extract the downloaded .zip file (for example by right-clicking and choosing _Extract All_).
-  - Run the `Gale_X.X.X_x64_en-US.msi` file inside of the extracted folder.
-</details>
+On pull, the fork reconciles precisely: only mods the **owner dropped** are
+removed; client mods are retained untouched. For optional mods, each client's
+enable/disable choices are stored in a local set and re-applied on every pull,
+so they survive owner pushes.
 
-<details>
-  <summary>
-    <b>Manual (Github)</b>
-  </summary>
-  
-  - Go to [Releases](https://github.com/Kesomannen/gale/releases).
-  - Download the `Gale_X.X.X_x64_en-US.msi` file for your desired version (the latest is recommended).
-  - Run the downloaded file.
-</details>
+The `optional` flag rides in the profile manifest as an additive field.
+**Vanilla Gale ignores it** — vanilla clients simply treat optional mods as
+regular synced mods (installed and enabled, not toggleable). Nothing breaks;
+they just don't get the optional behavior.
 
-<details>
-  <summary>
-    <b>Scoop</b>
-  </summary>
-  
-  Gale is available as a [Scoop](https://scoop.sh/) app in the official [games bucket](https://github.com/Calinou/scoop-games):
+> The owner marks mods optional from the fork (a per-mod "Mark optional"
+> button in the mod list). Owners and clients can both run this fork against
+> the standard Gale sync server.
 
-```powershell
-scoop bucket add games
-scoop install gale
-```
+## Install
 
-</details>
+Grab the latest installer from [Releases](https://github.com/jg224/gale-client-mods/releases):
 
-<details>
-  <summary>
-    <b>WinGet</b>
-  </summary>
-  
-  Gale is available as a [WinGet](https://learn.microsoft.com/en-us/windows/package-manager/winget/) application:
-
-```powershell
-winget install Kesomannen.Gale
-```
-
-</details>
+- **Windows**: `Gale_1.19.2_x64-setup.exe` (NSIS) or `Gale_1.19.2_x64_en-US.msi`
 
 > [!NOTE]
-> You might get a prompt saying "Windows has protected your PC". In this case, click `More Info` and `Run Anyway`.
+> The installer is unsigned, so Windows SmartScreen will warn on first run.
+> Click **More info** → **Run anyway**.
 
-> [!TIP]
-> If you're unsure about the safety of this app, I would suggest running it through a service like [VirusTotal](https://www.virustotal.com).
+For other platforms or older versions, see
+[upstream Gale](https://github.com/Kesomannen/gale/releases) — but note this
+fork's changes are only in the Windows builds published here.
 
-### Linux
+## Building from source
 
-<details>
-  <summary>
-    <b>Arch</b>
-  </summary>
-  
-  Gale is available as a **community-maintained** AUR package: [gale](https://aur.archlinux.org/packages/gale) (from source) and [gale-bin](https://aur.archlinux.org/packages/gale-bin) (prebuilt).
-  
-  Example installation command:
-  
-  ```bash
-  yay -S gale-bin
-  ```
+See [CONTRIBUTING.md](./CONTRIBUTING.md). Short version:
 
-> [!WARN]
-> **Do not** use the in-app updater, instead update the app via the AUR.
-
-</details>
-
-<details>
-  <summary>
-    <b>Debian</b>
-  </summary>
-
-Gale is available as a .deb package in [Releases](https://github.com/Kesomannen/gale/releases). After downloading, install with:
-
-```bash
-sudo dpkg -i Gale_X.X.X_x64_en-US.deb
+```powershell
+pnpm install
+pnpm tauri build
 ```
 
-Updating Gale can be done from the in-app updater UI.
+## Documentation
 
-</details>
-
-<details>
-  <summary>
-    <b>Fedora</b>
-  </summary>
-
-Gale is available as a .rpm package in [Releases](https://github.com/Kesomannen/gale/releases). After downloading, install with:
-
-```bash
-sudo rpm -i Gale_X.X.X_x64_en-US.rpm
-```
-
-Updating Gale can be done from the in-app updater UI.
-
-</details>
-
-<details>
-  <summary>
-    <b>Flatpak</b>
-  </summary>
-
-Gale is available as an independently hosted Flatpak package:
-
-```bash
-flatpak install https://kesomannen.com/com.kesomannen.gale.flatpakref
-```
-
-Updating the app can be done with `flatpak update com.kesomannen.gale`.
-
-</details>
-
-<details>
-  <summary>
-    <b>AppImage</b>
-  </summary>
-
-Distribution-agnostic AppImages are available in [Releases](https://github.com/Kesomannen/gale/releases). After downloading, make the file executable and run it:
-
-```bash
-chmod +x Gale_X.X.X_x64_en-US.AppImage
-./Gale_X.X.X_x64_en-US.AppImage
-```
-
-Updating Gale can be done from the in-app updater UI.
-
-</details>
-
----
-
-Want to build it from source? See the [wiki](https://github.com/Kesomannen/gale/wiki/building-from-source).
-
-## Screenshots
-
-_Profile_
-
-![screenshot](https://raw.githubusercontent.com/Kesomannen/gale/master/images/screenshots/screenshot1.png)
-
-_Thunderstore browser_
-
-![screenshot](https://raw.githubusercontent.com/Kesomannen/gale/master/images/screenshots/screenshot2.png)
-
-_Mod config editor_
-
-![screenshot](https://raw.githubusercontent.com/Kesomannen/gale/master/images/screenshots/screenshot3.png)
-
-_Modpack export_
-
-![screenshot](https://raw.githubusercontent.com/Kesomannen/gale/master/images/screenshots/screenshot4.png)
+- [CHANGES.md](./CHANGES.md) — every modification vs upstream, file by file
+- [CONTRIBUTING.md](./CONTRIBUTING.md) — build instructions and fork-specific notes
+- [LICENSE.md](./LICENSE.md) — GPL-3.0
 
 ## Credits
 
-Material icons licensed under [Apache 2.0](https://www.apache.org/licenses/LICENSE-2.0.html).
+This fork is a small delta on top of excellent work:
 
-Thanks to Ebkr for helping to navigate the Thunderstore API and BepInEx, and of course making the original mod manager!
-
----
-
-Still have questions? See the [FAQ](https://github.com/Kesomannen/gale/wiki/faq) or a [detailed list of features](https://github.com/Kesomannen/gale/wiki/Features).
+- **[Kesomannen](https://github.com/Kesomannen)** — the original Gale mod
+  manager. © Kesomannen, GPL-3.0. Go use and support the upstream project.
+- Thanks to Ebkr for helping to navigate the Thunderstore API and BepInEx, and
+  for making the original mod manager (credited upstream).
+- Material icons licensed under [Apache 2.0](https://www.apache.org/licenses/LICENSE-2.0.html).
